@@ -72,6 +72,10 @@ def download_raw(raw_dir=None, dest=None, nitrc_user=None):
         manifest as manifest_stage,
     )
 
+    # mkdir before prompt_dua: the latter touches .dua_confirmed in dest
+    # on successful consent, which fails if dest doesn't exist yet.
+    dest.mkdir(parents=True, exist_ok=True)
+
     prompt_dua(
         manifest["dua"],
         header="OASIS DATA USE AGREEMENT",
@@ -82,8 +86,6 @@ def download_raw(raw_dir=None, dest=None, nitrc_user=None):
         ),
         marker=dest / ".dua_confirmed",
     )
-
-    dest.mkdir(parents=True, exist_ok=True)
 
     print("[1/3] cohort selection from metadata CSVs")
     cohort_csv = manifest_stage.build_cohort(raw, dest)
@@ -183,6 +185,10 @@ def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
         reg,
     )
 
+    # mkdir before prompt_dua: the latter touches .dua_confirmed in dest
+    # on successful consent, which fails if dest doesn't exist yet.
+    dest.mkdir(parents=True, exist_ok=True)
+
     prompt_dua(
         manifest["dua"],
         header="OASIS DATA USE AGREEMENT",
@@ -193,8 +199,6 @@ def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
         ),
         marker=dest / ".dua_confirmed",
     )
-
-    dest.mkdir(parents=True, exist_ok=True)
 
     print("[1/6] cohort selection from metadata CSVs")
     cohort_csv = manifest_stage.build_cohort(raw_dir, dest)
