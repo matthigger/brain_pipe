@@ -21,10 +21,15 @@ zenodo:
 
 pipeline:
   # Records the exact env used to produce the deposited Zenodo derivative.
-  # Populate after a clean reprocess run by capturing `pip freeze` into
-  # pipeline/requirements.lock and the running Python version here.
-  python: null   # e.g. "3.11.9"
+  # Populated 2026-05-18 from a bit-deterministic seeded run (seed=1)
+  # verified by md5-equality of two independent runs (203/203 files).
+  python: "3.12.3"
   lockfile: pipeline/requirements.lock
+  # Reproducibility knobs (also enforced in fetch.py:_process_local):
+  env:
+    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS: "1"
+    ANTS_RANDOM_SEED: "1"
+  syn_random_seed: 1   # passed to ants.registration(..., random_seed=...)
 
 outputs:
   # What the processed directory contains

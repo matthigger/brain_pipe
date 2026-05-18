@@ -199,8 +199,11 @@ def _process_local(raw_dir, dest, n_jobs=1, n_jobs_dti=None):
         n_jobs_dti = min(n_jobs, 4)
     # Pin ITK to 1 thread per worker so ``n_jobs`` joblib processes
     # don't over-subscribe the CPU (each ANTs SyN otherwise grabs many
-    # ITK threads by default).
+    # ITK threads by default). The fixed ANTS_RANDOM_SEED + single
+    # ITK thread + the explicit random_seed arg in reg.py make SyN
+    # reproducible run-to-run.
     os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
+    os.environ["ANTS_RANDOM_SEED"] = "1"
 
     # imported lazily so a loader-only install can still `from
     # brain_pipe.hcp_ya_open import process` without dipy / antspyx

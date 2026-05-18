@@ -43,11 +43,15 @@ def collect_subject_files(path_in, sbj_regex, img_regex_list):
     return sbj_dict
 
 
-def _register_one(sbj, imgs, template_path, path_out, register_on):
+def _register_one(sbj, imgs, template_path, path_out, register_on, random_seed=1):
     """Register one subject. Returns warped-mask ndarray or None.
 
     ``template_path`` is the on-disk template path (re-loaded in each
     worker because ANTs image objects don't pickle reliably).
+    ``random_seed`` is forwarded to ``ants.registration``; together with
+    ``ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=1`` and ``ANTS_RANDOM_SEED``
+    in the env, this drives the SyN optimizer toward bit-identical
+    outputs across runs.
     """
     if register_on not in imgs:
         print(f"[WARN] Subject {sbj} has no {register_on} image. Skipping.")
@@ -61,6 +65,7 @@ def _register_one(sbj, imgs, template_path, path_out, register_on):
         type_of_transform="SyN",
         metric="CC",
         reg_iterations=[100, 70, 50, 20],
+        random_seed=random_seed,
     )
 
     warped_reg_img = reg["warpedmovout"]
