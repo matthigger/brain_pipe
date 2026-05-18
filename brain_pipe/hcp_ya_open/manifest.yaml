@@ -14,10 +14,13 @@ dua:
   prompt: "I have agreed to the HCP Open Access data use terms"
 
 zenodo:
-  doi: 10.5281/zenodo.17306498
-  url: https://zenodo.org/records/17306498/files/hcp100_aug25_registered.zip?download=1
-  filename: hcp100_aug25_registered.zip
-  # md5: TODO — record after the next deposit so the fetcher can verify
+  # v2 deposit produced by the bit-deterministic seeded pipeline.
+  # The concept DOI (10.5281/zenodo.17306497) resolves to "latest version".
+  # v1 (unseeded) lived at 10.5281/zenodo.17306498.
+  doi: 10.5281/zenodo.20275749
+  url: https://zenodo.org/records/20275749/files/hcp_ya_open.zip?download=1
+  filename: hcp_ya_open.zip
+  md5: 026346c5362981ccde7d029f223a407f
 
 pipeline:
   # Records the exact env used to produce the deposited Zenodo derivative.

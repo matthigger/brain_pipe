@@ -186,9 +186,20 @@ def _download_zenodo(dest, manifest):
             zf.extractall(extract_dir)
             top = list(extract_dir.iterdir())
             src = top[0] if len(top) == 1 and top[0].is_dir() else extract_dir
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.move(str(src), str(dest))
+
+            # Move each entry from `src` into `dest`, replacing same-name
+            # entries but preserving unrelated siblings (e.g. ``raw/``,
+            # which holds HCP raw downloads and is co-located with the
+            # processed derivative under the default cache).
+            dest.mkdir(parents=True, exist_ok=True)
+            for item in src.iterdir():
+                target = dest / item.name
+                if target.exists():
+                    if target.is_dir() and not target.is_symlink():
+                        shutil.rmtree(target)
+                    else:
+                        target.unlink()
+                shutil.move(str(item), str(target))
 
     print(f"  done: {dest}")
 

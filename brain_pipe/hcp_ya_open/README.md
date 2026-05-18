@@ -7,7 +7,7 @@ intersection brain mask.
 
 - Source: <https://db.humanconnectome.org>
 - DUA: <https://www.humanconnectome.org/study/hcp-young-adult/document/wu-minn-hcp-consortium-open-access-data-use-terms>
-- Deposited derivative: [Zenodo 10.5281/zenodo.17306498](https://zenodo.org/records/17306498)
+- Deposited derivative: [Zenodo 10.5281/zenodo.20275749](https://zenodo.org/records/20275749) (v2; seeded, bit-deterministic. v1 at [17306498](https://zenodo.org/records/17306498) was unseeded.)
 
 ## Use
 
@@ -64,21 +64,22 @@ process(download=False)                              # use default raw_dir
 process(download=False, raw_dir="/path/to/hcp/raw")  # or be explicit
 ```
 
-That runs four stages (see `pipeline/`):
+That runs four stages:
 
-1. **`zip_check.py`** — md5-verify and extract any HCP zip archives.
-   By default `delete=False` (zips kept on disk after extraction); pass
-   `delete=True` to reclaim the space, since the extracted folder is
-   the same size as the zip.
-2. **`dti.py`** — DIPY `TensorModel` per subject; saves `fa.nii.gz` and
-   `md.nii.gz` alongside each subject's `data.nii.gz`.
-3. **`reg.py`** — average-FA template, SyN-register each subject to it
-   (CC metric, 4-level pyramid), warp MD with the same transform, warp
-   each subject's brain mask, intersect for a group mask, multiply
-   warped FA/MD by the group mask.
-4. **`covariates.py`** — read the ConnectomeDB Subjects CSV from
-   `raw_dir` and emit `covariates.csv` restricted to subjects that
-   completed stage 3.
+1. **`brain_pipe/_dwi_pipeline/zip_check.py`** — md5-verify and extract
+   any HCP zip archives. By default `delete=False` (zips kept on disk
+   after extraction); pass `delete=True` to reclaim space.
+2. **`brain_pipe/_dwi_pipeline/dti.py`** — DIPY `TensorModel` per
+   subject; saves `fa.nii.gz` and `md.nii.gz` alongside each subject's
+   `data.nii.gz`.
+3. **`brain_pipe/_dwi_pipeline/reg.py`** — average-FA template,
+   SyN-register each subject to it (CC metric, 4-level pyramid,
+   `random_seed=1`), warp MD with the same transform, warp each
+   subject's brain mask, intersect for a group mask, multiply warped
+   FA/MD by the group mask.
+4. **`brain_pipe/hcp_ya_open/pipeline/covariates.py`** — read the
+   ConnectomeDB Subjects CSV from `raw_dir` and emit `covariates.csv`
+   restricted to subjects that completed stage 3.
 
 ## Covariates
 
@@ -88,7 +89,7 @@ on the ConnectomeDB project page (*WU-Minn HCP Data – 1200 Subjects*),
 go to the Subjects tab, click **Export CSV**, and select **all
 non-restricted columns**. Save the file (named
 `HCP_YA_subjects_<timestamp>.csv`) into the same `raw_dir` you pass to
-`get_path(raw_dir=...)`.
+`process(raw_dir=...)`.
 
 Stage 4 of the pipeline (`pipeline/covariates.py`) reads that CSV,
 renames `Subject`→`subject_id`, `Gender`→`sex`, `Age`→`age` (5-year
@@ -100,22 +101,54 @@ etc.
 
 ## Provenance
 
-`manifest.yaml` records the source URL, DUA, Zenodo DOI, and the env
-intended to be used by the pipeline. Two fields are not yet populated:
+`manifest.yaml` records the source URL, DUA, Zenodo deposit, and the
+exact env used to produce the deposited derivative:
 
-- `zenodo.md5` — the md5 of the deposit archive (for download
-  verification).
-- `pipeline.python` and `pipeline/requirements.lock` — the exact
-  Python and `pip freeze` output that produced the deposited
-  derivative.
+- `pipeline.python: "3.12.3"`
+- `pipeline.lockfile: pipeline/requirements.lock` (pip freeze of the
+  validated venv)
+- `pipeline.env.ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS: "1"` and
+  `pipeline.env.ANTS_RANDOM_SEED: "1"` (enforced in
+  `fetch.py:_process_local`)
+- `pipeline.syn_random_seed: 1` (passed to `ants.registration`)
 
-Populate them on the next clean reprocess run:
+Two independent end-to-end runs of the seeded pipeline produced
+**203/203 md5-identical** output files. To re-verify after any change,
+see [Testing](#testing) below.
+
+`zenodo.md5` is still TODO — record the md5 of the deposit archive
+once the v2 deposit is uploaded.
+
+## Testing
+
+Three regression tests live in `tests/test_repro_hcp_ya_open.py`. They
+are excluded from default pytest discovery (see `tests/conftest.py`)
+because they're slow and require raw data. Invoke explicitly:
 
 ```bash
-pip freeze > brain_pipe/hcp_ya_open/pipeline/requirements.lock
-python -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'
+# Run all three (DTI + SyN + Zenodo)
+pytest tests/test_repro_hcp_ya_open.py -v
+
+# Or individually:
+pytest tests/test_repro_hcp_ya_open.py::test_dti_single_subject_deterministic
+pytest tests/test_repro_hcp_ya_open.py::test_syn_bit_identical_to_reference
+pytest tests/test_repro_hcp_ya_open.py::test_zenodo_download_md5_matches_reference
 ```
 
-Then update `manifest.yaml: pipeline.python` and the
-`[hcp_ya_open-pipeline]` extra in the top-level `pyproject.toml` to
-match.
+| Test | Wall time | What it checks |
+|------|-----------|----------------|
+| `test_dti_single_subject_deterministic` | ~3 min | Re-runs DIPY TensorModel on one subject in a tmp dir, md5-compares fa/md against the cached values. |
+| `test_syn_bit_identical_to_reference` | ~14 min (scales with `os.cpu_count()`) | Full seeded SyN re-run into a tmp dir, md5-compares all 203 outputs against `tests/reference/hcp_ya_open_v2_md5.txt`. |
+| `test_zenodo_download_md5_matches_reference` | seconds–minutes | Calls `process(download=True)`. If the default cache is populated, returns instantly and md5-compares. If empty, prompts you to type the HCP DUA agreement and downloads to the default cache (~3 min). If you decline the DUA, the test errors. |
+
+To force a true round-trip test of the Zenodo download (rather than
+testing whatever's already in the default cache), clear the deposit
+files first:
+
+```bash
+cd ~/.local/share/brain_pipe/hcp_ya_open
+rm -f *.nii.gz covariates.csv .complete    # preserves raw/ subdir
+pytest tests/test_repro_hcp_ya_open.py::test_zenodo_download_md5_matches_reference
+```
+
+…or override the cache path with `BRAIN_PIPE_HCP_YA_OPEN_PATH=/tmp/hcp_test`.

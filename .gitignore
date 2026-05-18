@@ -20,3 +20,6 @@ env/
 
 # Local run artifacts (kept on disk; eventually deposited alongside the data on Zenodo)
 logs/
+
+# Scratch / working notes
+tmp*

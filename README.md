@@ -11,7 +11,7 @@ redistribution is not permitted and `process()` cannot download
 anything — you point at your own copy:
 
 ```python
-process(download=False, raw_dir='/data/camcan/raw')   # pipeline runs locally
+process(download=False, raw_dir='/data/hcp_ya_open/raw')   # pipeline runs locally
 ```
 
 The exceptions, where the processed derivative is openly redistributable
@@ -30,7 +30,7 @@ its extra into a dedicated venv:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install "brain_pipe[camcan-pipeline]"
+pip install "brain_pipe[hcp_ya_open-pipeline]"
 ```
 
 Pipeline extras install the exact pins recorded in each dataset's
@@ -40,15 +40,16 @@ one at a time.
 ## Use
 
 ```python
-from brain_pipe.camcan import process, get_df_image, get_df_xfeat, LABELS
+from brain_pipe.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
 
 process()                      # ensures the processed derivative exists
-                               # (prompts: download a deposited derivative
-                               # if one exists, or run the pipeline locally)
-df_image = get_df_image()      # index: subject_id; cols: fa, md, mask -> absolute Paths
-df_xfeat = get_df_xfeat()      # index: subject_id; cols: age, sex, dx, ...
+                               # (prompts: download the deposited derivative
+                               # from Zenodo, or run the pipeline locally)
+df_image = get_df_image()      # index: subject_id; cols: fa, md -> absolute Paths
+df_xfeat = get_df_xfeat()      # index: subject_id; cols: age, sex,
+                               # Release, ... (~580 columns from ConnectomeDB)
 
-LABELS['age']                  # 'Age (years)'
+LABELS['age']                  # 'Age (years, 5-yr bucket)'
 LABELS['fa']                   # 'Fractional Anisotropy'
 ```
 
@@ -74,6 +75,6 @@ the subpackage README:
 ## Cache
 
 Default: `platformdirs.user_data_dir('brain_pipe') / <dataset>`.
-Override per call (`get_path(dest=...)`) or globally
+Override per call (`process(dest=...)`) or globally
 (`BRAIN_PIPE_<DATASET>_PATH`). A `.complete` sentinel marks a finished
 run.
