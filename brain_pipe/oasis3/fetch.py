@@ -23,25 +23,36 @@ def _resolve_dest(dest=None):
     return resolve_dest("oasis3", dest)
 
 
-def prepare(bundle, dest=None):
+def prepare(bundle=None, dest=None, nitrc_user=None):
     """Extract the OASIS-3 metadata bundle and build the cohort + xfeat
-    table — without any NITRC-IR authentication or imaging download.
+    table.
 
-    This is the first of three stages (prepare -> fetch -> process):
+    First of three stages (prepare -> fetch -> process):
 
-    - ``prepare`` (here): metadata only, ~seconds, no creds. Yields
-      ``cohort_sessions.csv`` (subjects + chosen session IDs) and
-      ``covariates.csv`` (age/sex/cdr/mmse/dx/centiloid).
-    - ``fetch`` (next): prompts NITRC-IR creds, downloads T1w+DWI+SUVR
-      imaging for the cohort subjects.
+    - ``prepare`` (here): downloads (or accepts) the metadata bundle,
+      extracts the CSVs, builds ``cohort_sessions.csv`` and
+      ``covariates.csv``.
+    - ``fetch``: downloads T1w+DWI+SUVR imaging for the cohort subjects.
     - ``process``: DTI fit + MNI152 registration + final covariates.
 
+    By default, downloads ``OASIS3_data_files.zip`` (~67 MB) from
+    NITRC-IR via the same XNAT REST API ``fetch()`` uses, so this is
+    a one-call entry point. Pass ``bundle=<path>`` to skip the download
+    (for offline use or a pre-downloaded zip).
+
+    The downloaded bundle is cached at
+    ``<dest>/raw/OASIS3_data_files.zip``. Re-running ``prepare()`` with
+    that file present prints a reuse message and skips the network call;
+    delete the file to force a re-download.
+
     Args:
-        bundle: path to ``OASIS3_data_files.zip`` downloaded from
-            NITRC-IR's ``OASIS3 -> 0AS_data_files -> OASIS3_data_files``
-            (Bulk Action -> Download).
+        bundle: optional path to a pre-downloaded
+            ``OASIS3_data_files.zip``. If omitted, the bundle is fetched
+            from NITRC-IR (prompts for credentials).
         dest: cache location; defaults to ``$BRAIN_PIPE_OASIS3_PATH`` or
             ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+        nitrc_user: NITRC-IR username for the bundle download. Ignored
+            when ``bundle`` is provided. Prompted if omitted.
 
     Returns:
         ``Path`` to ``dest``. The two output CSVs live at
@@ -52,9 +63,13 @@ def prepare(bundle, dest=None):
 
     dest = _resolve_dest(dest)
     dest.mkdir(parents=True, exist_ok=True)
+    raw_dir = dest / "raw"
+
+    if bundle is None:
+        bundle = _fetch_bundle(raw_dir, nitrc_user)
 
     print("[1/2] extracting bundle CSVs")
-    bundle_paths = bundle_stage.extract(bundle, dest / "raw")
+    bundle_paths = bundle_stage.extract(bundle, raw_dir)
 
     print("[2/2] building cohort + covariates")
     cohort_stage.build(bundle_paths, dest)
@@ -63,6 +78,31 @@ def prepare(bundle, dest=None):
     print(f"Done. Review covariates.csv at {dest / 'covariates.csv'}")
     print(f"Next: fetch imaging (prompts NITRC-IR creds)")
     return dest
+
+
+def _fetch_bundle(raw_dir, nitrc_user):
+    """Download OASIS3_data_files.zip to ``raw_dir`` via NITRC-IR's
+    XNAT REST API. Idempotent (reuses an existing file with a message).
+    """
+    out_path = raw_dir / "OASIS3_data_files.zip"
+    if out_path.exists():
+        print(f"bundle already downloaded at {out_path} — reusing")
+        return out_path
+
+    import getpass
+
+    from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
+
+    if nitrc_user is None:
+        nitrc_user = input("NITRC-IR username: ").strip()
+        while not nitrc_user:
+            nitrc_user = input("NITRC-IR username (required): ").strip()
+    password = getpass.getpass(f"NITRC-IR password for {nitrc_user}: ")
+
+    print(f"[downloading bundle from NITRC-IR -> {out_path}]")
+    with NitrcXnat(nitrc_user, password) as xnat:
+        xnat.download_data_files_bundle(out_path)
+    return out_path
 
 
 def fetch(dest=None, nitrc_user=None):
@@ -168,27 +208,13 @@ def download_raw(raw_dir=None, dest=None, nitrc_user=None):
             f"raw_dir=... explicitly. See README for the navigation."
         )
 
-    from brain_pipe.hcp_ya_open.fetch import prompt_dua
     from brain_pipe.oasis3.pipeline import (
         fetch_scripts,
         install_scripts,
         manifest as manifest_stage,
     )
 
-    # mkdir before prompt_dua: the latter touches .dua_confirmed in dest
-    # on successful consent, which fails if dest doesn't exist yet.
     dest.mkdir(parents=True, exist_ok=True)
-
-    prompt_dua(
-        manifest["dua"],
-        header="OASIS DATA USE AGREEMENT",
-        body=(
-            "OASIS-3 imaging data is restricted by the OASIS Data Use\n"
-            "Agreement. Subjects, derived data, and processed outputs\n"
-            "may not be redistributed."
-        ),
-        marker=dest / ".dua_confirmed",
-    )
 
     print("[1/3] cohort selection from metadata CSVs")
     cohort_csv = manifest_stage.build_cohort(raw, dest)
@@ -278,7 +304,6 @@ def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
             "into a fresh venv."
         ) from e
 
-    from brain_pipe.hcp_ya_open.fetch import prompt_dua
     from brain_pipe.oasis3.pipeline import (
         covariates,
         dti,
@@ -288,20 +313,7 @@ def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
         reg,
     )
 
-    # mkdir before prompt_dua: the latter touches .dua_confirmed in dest
-    # on successful consent, which fails if dest doesn't exist yet.
     dest.mkdir(parents=True, exist_ok=True)
-
-    prompt_dua(
-        manifest["dua"],
-        header="OASIS DATA USE AGREEMENT",
-        body=(
-            "OASIS-3 imaging data is restricted by the OASIS Data Use\n"
-            "Agreement. Subjects, derived data, and processed outputs\n"
-            "may not be redistributed."
-        ),
-        marker=dest / ".dua_confirmed",
-    )
 
     print("[1/6] cohort selection from metadata CSVs")
     cohort_csv = manifest_stage.build_cohort(raw_dir, dest)

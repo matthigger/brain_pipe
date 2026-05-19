@@ -29,6 +29,15 @@ from tqdm.auto import tqdm
 
 BASE = "https://www.nitrc.org/ir"
 
+# The OASIS-3 metadata bundle — same payload as the web UI's
+# "0AS_data_files -> OASIS3_data_files -> Bulk Action -> Download"
+# (~67 MB zip containing UDS forms, per-scan JSON metadata CSVs,
+# centiloid, demographics, and dictionaries).
+BUNDLE_URL = (
+    f"{BASE}/data/archive/projects/OASIS3/subjects/0AS_data_files"
+    f"/experiments/OASIS3_data_files/scans/ALL/files?format=zip"
+)
+
 
 # --- URL routing helpers -----------------------------------------------
 
@@ -190,6 +199,26 @@ class NitrcXnat:
                 label=f"{pup_id}/{row['Name']}",
             )
         return out_dir
+
+    def download_data_files_bundle(self, out_path):
+        """Download the OASIS-3 metadata bundle zip (~67 MB) to
+        ``out_path``. Idempotent: if the file already exists, prints a
+        reuse message and returns without touching the network.
+
+        Args:
+            out_path: target file (typically
+                ``<dest>/raw/OASIS3_data_files.zip``).
+
+        Returns:
+            ``Path(out_path)``.
+        """
+        out_path = Path(out_path)
+        if out_path.exists():
+            print(f"  bundle already downloaded at {out_path} — reusing")
+            return out_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        self._stream_file(BUNDLE_URL, out_path, label=out_path.name)
+        return out_path
 
     # --- internals ----------------------------------------------------
 

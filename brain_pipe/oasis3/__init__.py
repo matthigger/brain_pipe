@@ -4,9 +4,9 @@ Three-stage flow:
 
     from brain_pipe.oasis3 import prepare, fetch, process
 
-    prepare(bundle='~/Downloads/OASIS3_data_files.zip')  # metadata only, no creds
-    fetch()                                              # NITRC-IR imaging download
-    process()                                            # DTI + MNI registration
+    prepare()    # auto-fetches the ~67 MB metadata bundle from NITRC-IR
+    fetch()      # downloads cohort imaging from NITRC-IR
+    process()    # DTI + MNI registration
 
 Loaders:
 

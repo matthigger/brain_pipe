@@ -14,10 +14,12 @@ source:
     - OASIS3          # MR, PIB/AV45/FDG PET, FreeSurfer, PUP
     - OASIS3_AV1451   # baseline AV1451 (tau) PET + PUP
 
+# NITRC-IR enforces the OASIS Data Use Agreement at account-creation
+# time, so holding valid credentials is itself DUA confirmation — the
+# pipeline does not prompt again.
 dua:
   name: OASIS Data Use Agreement
   url: https://www.oasis-brains.org
-  prompt: "I have agreed to the OASIS Data Use Agreement"
 
 # No Zenodo redistribution — OASIS data is DUA-restricted.
 zenodo: null

@@ -13,130 +13,52 @@ A/T/N subset.
 
 ## Use
 
-**Prereqs** (one-time):
+**Prereq** (one-time): get a NITRC-IR account at
+<https://www.nitrc.org/ir/>. Account signup enforces the OASIS Data
+Use Agreement, so the pipeline doesn't prompt for it again.
 
-1. Sign the [OASIS DUA](https://www.oasis-brains.org) and get a
-   NITRC-IR account.
-
-2. Pull OASIS-3 metadata from NITRC-IR in **two passes**: one for
-   per-session imaging listings (used to select the cohort), one for
-   the clinical/cognitive data bundle (used to populate xfeat). NITRC-IR
-   exposes these via different UI flows; we're working on consolidating
-   but for now both passes are needed.
-
-   ### Pass 1 — per-session imaging listings (XNAT search export)
-
-   These are the simple session-listing CSVs the cohort-selection stage
-   reads from the top of ``raw_dir``. Repeat once per project
-   (OASIS3 and OASIS3_AV1451):
-
-   1. Log into <https://www.nitrc.org/ir/>.
-   2. **Projects** → **OASIS3**.
-   3. From the **MR Sessions** tab, **Options** → **Edit Columns** →
-      include `MR ID`, `Date`, `Subject`, `Age`, `Scanner`, `Scans`,
-      `PUP Timecourses`, `Freesurfers`. Then **Options** →
-      **Spreadsheet** → save as ``raw_dir/mr.csv``.
-   4. Same drill from the **PET Sessions** tab → save as
-      ``raw_dir/pet.csv``. (Columns: XNAT_PETSESSIONDATA ID, Subject,
-      Date, Age, ...)
-   5. Same drill for **PUP Timecourses** (Advanced Search → data type
-      "PUP Timecourse" → Edit Columns to include
-      `PUP_PUPTIMECOURSEDATA ID`, `Date`, `procType`, `model`,
-      `tracer`, `FSId`, `MRId`, `mocoError`, `regError`) → save as
-      ``raw_dir/pup.csv``.
-   6. **Subjects** tab → Spreadsheet → save as ``raw_dir/sbj.csv``
-      (columns: Subject, M/F, Hand, YOB, MR Sessions, PET Sessions,
-      CT Sessions).
-   7. Repeat steps 2–6 for project **OASIS3_AV1451**, saving the four
-      CSVs into ``raw_dir/1451/`` (only PET, PUP, and Subjects there;
-      no MR sessions are needed since AV1451 tau scans use the MR
-      session that's already in OASIS3).
-
-   Optional but consistent: ``raw_dir/ct.csv`` and
-   ``raw_dir/freesurfer.csv`` (same drill from those tabs). The
-   pipeline ignores them but they're useful reference.
-
-   ### Pass 2 — clinical / cognitive bundle download
-
-   All the clinical, cognitive, centiloid, and reference data lives in
-   one bundle inside the `0AS_data_files` pseudo-subject:
-
-   1. **Projects** → **OASIS3**.
-   2. **Subjects** tab → sort by Subject ID ascending. The first row
-      is `0AS_data_files` — click it.
-   3. You'll see one experiment: an MR-session-styled entry called
-      **`OASIS3_data_files`**. Click it.
-   4. The "scans" list shows ~30 assessment bundles (UDS forms,
-      cognitive assessments, JSON imaging metadata, data dictionaries,
-      centiloid values, etc.).
-   5. Check the box at the top of the list to **select all**, then
-      **Bulk Action → Download**. You'll get
-      `OASIS3_data_files.zip` (~67 MB).
-   6. ``unzip OASIS3_data_files.zip -d <raw_dir>`` so the tree lands
-      at ``<raw_dir>/OASIS3_data_files/scans/...``.
-
-   `covariates.py` globs through that tree by filename to read the
-   four files it actually needs:
-
-   | xfeat field   | source (anywhere under `<raw_dir>/OASIS3_data_files/`) |
-   |---------------|--------------------------------------------------------|
-   | `cdr`         | `OASIS3_UDSb4_cdr.csv`                                 |
-   | `mmse`        | `OASIS3_UDSc1_cognitive_assessments.csv`               |
-   | `dx`          | `OASIS3_UDSd1_diagnoses.csv`                           |
-   | `centiloid`   | `OASIS3_amyloid_centiloid.csv`                         |
-
-   The bundle's other contents (per-scan JSON CSVs, demographic
-   extras, 14 other UDS forms, data dictionary PDFs) are downloaded
-   but unused by the current pipeline. Don't bother deselecting —
-   the click cost outweighs the disk cost (~67 MB total).
-
-   You'll also see an **`OASIS_cohort_files.zip`** offered alongside
-   the data-files zip. It contains a single CSV listing subjects whose
-   CDR stayed at 0 across all visits (a curated cognitively-normal
-   subset). This pipeline doesn't use it (we build the cohort by
-   imaging modality availability, not by clinical status). Safe to
-   skip — or grab it if you ever want a confirmed-healthy overlay.
-
-   ### Resulting `raw_dir` layout
-
-   After both passes:
-
-   ```
-   <raw_dir>/
-   ├── mr.csv          # pass 1: OASIS3 MR session listing
-   ├── pup.csv         # pass 1: OASIS3 PUP timecourses (PIB + AV45)
-   ├── pet.csv         # pass 1: OASIS3 PET session listing
-   ├── sbj.csv         # pass 1: OASIS3 subject demographics
-   ├── 1451/
-   │   ├── pet.csv     # pass 1: OASIS3_AV1451 PET sessions
-   │   ├── pup.csv     # pass 1: OASIS3_AV1451 PUP timecourses (tau)
-   │   └── sbj.csv     # pass 1: OASIS3_AV1451 subjects
-   └── OASIS3_data_files/  # pass 2: extracted clinical bundle
-       └── scans/.../OASIS3_UDSb4_cdr.csv  (etc.)
-   ```
-
-**Just want the raw cohort data on disk?** (e.g. running your own
-downstream analysis instead of the bundled pipeline):
+The pipeline runs in three stages — `prepare` → `fetch` → `process`:
 
 ```python
-from brain_pipe.oasis3 import download_raw
+from brain_pipe.oasis3 import prepare, fetch, process, get_df_image, get_df_xfeat, LABELS
 
-# Runs cohort selection + downloads raw scans/PUP for the 68-subject
-# A/T/N+DTI cohort. One password prompt; ~10-20 min, ~5 GB on disk.
-download_raw(raw_dir='/path/to/your/oasis3_dir')
+prepare()    # ~seconds. Downloads the ~67 MB metadata bundle from
+             # NITRC-IR, builds cohort_sessions.csv + covariates.csv.
+fetch()      # ~30 min, ~5 GB. Downloads T1w + DWI + PUP SUVR for
+             # the 68 cohort subjects.
+process()    # DTI fit + MNI152 registration. Produces the four 3D
+             # NIfTIs per subject + covariates.csv.
+
+df_image = get_df_image()  # cols: amyloid_suvr, tau_suvr, fa, md
+df_xfeat = get_df_xfeat()  # cols: age, sex, cdr, mmse, dx, centiloid
+LABELS['amyloid_suvr']     # 'Amyloid SUVR (AV45)'
 ```
 
-**Full processed derivative** (cohort + raw fetch + DTI + MNI registration
-+ covariates):
+Each network stage prompts once for NITRC-IR credentials (password
+never stored). Username can be passed via ``prepare(nitrc_user=...)`` /
+``fetch(nitrc_user=...)`` to skip that prompt.
+
+**Offline / pre-downloaded bundle.** If you already have
+``OASIS3_data_files.zip`` on disk, pass its path to skip the bundle
+download:
 
 ```python
-from brain_pipe.oasis3 import process, get_df_image, get_df_xfeat, LABELS
+prepare(bundle='/path/to/OASIS3_data_files.zip')
+```
 
-process(raw_dir='/path/to/your/oasis3_dir')   # six stages
-df_image = get_df_image()                     # cols: amyloid_suvr, tau_suvr, fa, md
-df_xfeat = get_df_xfeat()                     # cols: age, sex, cdr, mmse, dx, centiloid
+(To get the zip manually: NITRC-IR → OASIS3 → 0AS_data_files →
+OASIS3_data_files → Bulk Action → Download.)
 
-LABELS['amyloid_suvr']  # 'Amyloid SUVR (AV45)'
+**Idempotent.** The bundle zip is cached at
+``<dest>/raw/OASIS3_data_files.zip``; re-running ``prepare()`` reuses
+it (delete the file to force a re-download). ``fetch()`` skips any
+subject already present on disk, so interrupted runs resume cleanly.
+
+Pipeline extras are required to reprocess (loader-only install gives
+you `get_df_image` / `get_df_xfeat` against an existing derivative):
+
+```bash
+pip install "brain_pipe[oasis3-pipeline]"   # in a dedicated venv
 ```
 
 Pipeline extras are required to reprocess (loader-only install gives
