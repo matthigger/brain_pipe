@@ -3,10 +3,10 @@
 This file is excluded from default pytest discovery (see
 ``tests/conftest.py``). Invoke explicitly:
 
-    pytest tests/test_repro_hcp_ya_open.py -v                       # all
-    pytest tests/test_repro_hcp_ya_open.py::test_dti_single_subject_deterministic
-    pytest tests/test_repro_hcp_ya_open.py::test_syn_bit_identical_to_reference
-    pytest tests/test_repro_hcp_ya_open.py::test_zenodo_download_md5_matches_reference
+    pytest tests/hcp_ya_open/test_repro.py -v                       # all
+    pytest tests/hcp_ya_open/test_repro.py::test_dti_single_subject_deterministic
+    pytest tests/hcp_ya_open/test_repro.py::test_syn_bit_identical_to_reference
+    pytest tests/hcp_ya_open/test_repro.py::test_zenodo_download_md5_matches_reference
 
 Requirements:
 - Raw HCP data at ``~/.local/share/brain_pipe/hcp_ya_open/raw/`` (the
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-REFERENCE_MD5 = Path(__file__).parent / "reference" / "hcp_ya_open_v2_md5.txt"
+REFERENCE_MD5 = Path(__file__).parent.parent / "reference" / "hcp_ya_open_v2_md5.txt"
 OUTPUT_PATTERN = re.compile(
     r"^(?:\d{6}_(?:fa|md)\.nii\.gz|fa_template\.nii\.gz|"
     r"group_mask\.nii\.gz|covariates\.csv)$"

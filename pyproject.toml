@@ -69,3 +69,8 @@ include = ["brain_pipe*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# importlib mode lets multiple test files share the same basename across
+# subdirs (e.g. tests/hcp_ya_open/test_load.py + tests/hcp_ya_restricted/test_load.py).
+# pythonpath makes brain_pipe importable without an editable install.
+addopts = "--import-mode=importlib"
+pythonpath = ["."]
