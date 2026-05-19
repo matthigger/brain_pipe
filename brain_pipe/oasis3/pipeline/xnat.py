@@ -129,13 +129,24 @@ class NitrcXnat:
         return out_dir
 
     def download_pup_filtered(self, pup_id, filename_substr, dest, project=None):
-        """List files in a PUP assessor, filter by case-insensitive
+        """List files in a PUP assessor, filter by case-**sensitive**
         substring match on filename, download each into
         ``dest/<pup_id>/``. Skips if target dir already has content.
 
+        Case-sensitivity is deliberate. PUP's volumetric SUVR images
+        carry uppercase ``SUVR`` in their stems
+        (e.g. ``*_msum_SUVR.4dfp.img``), while the hundreds of per-ROI
+        scalar tables PUP also emits use a lowercase ``.suvr``
+        extension. A case-insensitive ``"SUVR"`` filter would pull
+        ~700 small tables per PUP at ~one HTTP round-trip each,
+        ballooning per-PUP time from seconds to minutes for no
+        downstream benefit. Case-sensitive matching keeps only the
+        volumetric images (typically 6 files: 2 SUVR variants ×
+        ``.4dfp.{img,hdr,ifh}`` triplets).
+
         Args:
             pup_id: e.g. ``'OAS30003_AV45_PUPTIMECOURSE_d3731'``.
-            filename_substr: e.g. ``'SUVR'``.
+            filename_substr: e.g. ``'SUVR'`` (case matters).
             dest: parent dir; output lands at ``dest/<pup_id>/``.
             project: XNAT project id. Auto-routed when ``None``.
 
@@ -157,8 +168,7 @@ class NitrcXnat:
         r = self.session.get(list_url)
         r.raise_for_status()
         reader = csv.DictReader(io.StringIO(r.text))
-        target = filename_substr.lower()
-        matches = [row for row in reader if target in row["Name"].lower()]
+        matches = [row for row in reader if filename_substr in row["Name"]]
         if not matches:
             print(f"  [WARN] no files matching {filename_substr!r} in {pup_id}")
             return out_dir
