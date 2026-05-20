@@ -42,8 +42,7 @@ mni_template:
 
 pipeline:
   # Records the exact env used to produce the processed derivative.
-  # Populate after a clean reprocess run.
-  python: null   # e.g. "3.11.9"
+  python: "3.12.3"
   lockfile: pipeline/requirements.lock
 
 outputs:

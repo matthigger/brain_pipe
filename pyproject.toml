@@ -26,16 +26,19 @@ dependencies = [
 # into a dedicated venv.
 
 oasis3-pipeline = [
-    # TODO: replace placeholder pins with `pip freeze` output from the
-    # next clean run that produces the OASIS-3 derivative.
+    # Pinned to the resolved versions from the 67-subject reference
+    # run on 2026-05-20 (Python 3.12.3, n_jobs=8). Full transitive
+    # lock at brain_pipe/oasis3/pipeline/requirements.lock.
     "dipy==1.9.0",
     "antspyx==0.5.4",
-    "nibabel==5.3.2",
+    "nibabel==5.4.2",
     "numpy==1.26.4",
-    "joblib==1.4.2",
-    "tqdm==4.66.5",
-    "pyyaml==6.0.2",
-    "templateflow>=24.0.0",  # MNI152 fetch + cache
+    "joblib==1.5.3",
+    "tqdm==4.67.3",
+    "pyyaml==6.0.3",
+    "templateflow==25.1.2",  # MNI152 fetch + cache
+    "requests==2.34.2",      # NITRC-IR XNAT REST client
+    "pandas==3.0.3",         # cohort + covariates CSV processing
 ]
 
 hcp_ya_open-pipeline = [

@@ -1,4 +1,4 @@
-# brain_pipe.oasis3 — STUB (cohort definition locked, pipeline in progress)
+# brain_pipe.oasis3
 
 Aging / Alzheimer's cohort from the WashU OASIS-3 release. Four per-subject
 3D image features — `amyloid_suvr`, `tau_suvr`, `fa`, `md` — plus
@@ -24,10 +24,14 @@ from brain_pipe.oasis3 import prepare, fetch, process, get_df_image, get_df_xfea
 
 prepare()    # ~seconds. Downloads the ~67 MB metadata bundle from
              # NITRC-IR, builds cohort_sessions.csv + covariates.csv.
-fetch()      # ~30 min, ~5 GB. Downloads T1w + DWI + PUP SUVR for
-             # the 68 cohort subjects.
+fetch()      # ~90 min, ~21 GB. Downloads T1w + DWI scans plus the
+             # SUVR triplets of both AV45 and AV1451 PUPs (~70 MB per
+             # session, after the regex filter; the unfiltered PUP
+             # dirs would be ~2.7 GB each).
 process()    # DTI fit + MNI152 registration. Produces the four 3D
-             # NIfTIs per subject + covariates.csv.
+             # NIfTIs per subject + covariates.csv. ~20 min on a
+             # 32-core box (n_jobs=8); count on ~1-2 hours on a
+             # 4-core laptop.
 
 df_image = get_df_image()  # cols: amyloid_suvr, tau_suvr, fa, md
 df_xfeat = get_df_xfeat()  # cols: age, sex, cdr, mmse, dx, centiloid
@@ -53,13 +57,6 @@ OASIS3_data_files → Bulk Action → Download.)
 ``<dest>/raw/OASIS3_data_files.zip``; re-running ``prepare()`` reuses
 it (delete the file to force a re-download). ``fetch()`` skips any
 subject already present on disk, so interrupted runs resume cleanly.
-
-Pipeline extras are required to reprocess (loader-only install gives
-you `get_df_image` / `get_df_xfeat` against an existing derivative):
-
-```bash
-pip install "brain_pipe[oasis3-pipeline]"   # in a dedicated venv
-```
 
 Pipeline extras are required to reprocess (loader-only install gives
 you `get_df_image` / `get_df_xfeat` against an existing derivative):
@@ -226,5 +223,12 @@ own NITRC-IR-authenticated download.
 
 ## Status
 
-- 2026-05-18: cohort definition locked (AV45 ∩ AV1451-baseline ∩ DWI,
-  ≤60d worst pairwise gap, ~68 subjects). Pipeline code in progress.
+- 2026-05-18: cohort definition locked — AV45 ∩ AV1451-baseline ∩ DWI,
+  ≤60d worst pairwise gap, 67 subjects.
+- 2026-05-20: full pipeline end-to-end on one machine. `prepare()` +
+  `fetch()` ≈ 90 min (driven by NITRC-IR PUP fetch latency, ~21 GB
+  raw on disk). `process()` runs the 67-subject cohort in ~18 min
+  wall time (n_jobs=8) on a 32-core box; per-subject SyN T1→MNI
+  registration is the dominant cost. Deliverable: 67 × 4 = 268
+  MNI152-space NIfTIs (~6.7 GB) + `mni_template.nii.gz` +
+  `group_mask.nii.gz` + `cohort_sessions.csv` + `covariates.csv`.
