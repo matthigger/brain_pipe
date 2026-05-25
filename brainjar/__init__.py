@@ -1,3 +1,5 @@
 """brainjar — reproducible pipelines and uniform loaders for brain imaging datasets."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version as _version
+
+__version__ = _version("brainjar")
